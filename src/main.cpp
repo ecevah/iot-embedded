@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
+#include <Update.h>
 
 const char* ssid = "Esp32";
 const char* password = "123456789";
@@ -29,7 +30,7 @@ JsonArray networks = jsonDoc.to<JsonArray>();
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-int latestRandomValues[3] = {0, 0, 0}; // Üç farklı rastgele değeri saklayacak dizi
+int latestRandomValues[3] = {0, 0, 0}; 
 
 void sendLatestRandomValues(AsyncWebSocketClient *client) {
   StaticJsonDocument<200> doc;
@@ -44,14 +45,14 @@ void sendLatestRandomValues(AsyncWebSocketClient *client) {
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_CONNECT) {
     Serial.println("Client connected");
-    sendLatestRandomValues(client); // Bağlı istemciye en son rastgele değerleri gönder
+    sendLatestRandomValues(client); 
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.println("Client disconnected");
   }
 }
 
 void sendRandomValues() {
-  // Üç farklı rastgele değer üret
+  
   for (int i = 0; i < 3; i++) {
     latestRandomValues[i] = random(0, 100);
   }
@@ -97,19 +98,22 @@ void handleScan(AsyncWebServerRequest *request) {
 void handleDelete(AsyncWebServerRequest *request) {
   clearEEPROM();
   Serial.println("Saved network credentials deleted. Device now in AP+STA mode.");
-  request->send(200, "application/json", "{\"status\":\"true\",\"message\":\"Network credentials deleted, device reset to AP+STA mode.\"}");
   delay(1000);
   WiFi.disconnect(); 
+  request->send(200, "application/json", "{\"status\":\"true\",\"message\":\"Network credentials deleted, device reset to AP+STA mode.\"}");
   delay(1000);
   ESP.restart();
 }
 
 void setup() 
 {
+  Serial.println("şimdi ben buradayım");
   Serial.begin(115200);
   EEPROM.begin(512);
   pinMode(ledPin, OUTPUT);
   pinMode(ledPin2, OUTPUT); 
+
+  Serial.println("bak buradayım");
 
   eeprom_ssid = readEEPROMString(0, 32); 
   int passwordStart = eeprom_ssid.length() + 1; 
@@ -117,25 +121,28 @@ void setup()
   
   Serial.println(eeprom_ssid + eeprom_password);
 
-  if (eeprom_ssid && eeprom_password) {
+  Serial.println("tamam da niye oradasın");
+  if (!eeprom_ssid.isEmpty() && !eeprom_password.isEmpty()) {
+    Serial.println("maalesefBuradavım");
     WiFi.mode(WIFI_AP_STA); 
     delay(1000);
     WiFi.begin(eeprom_ssid.c_str(), eeprom_password.c_str());
+    Serial.println("hop diye buradayım");
     delay(3000);
     Serial.println(WiFi.status());
 
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("WiFi bağlantısı başarılı!");
+      Serial.println("WiFi connection successful!");
       Serial.println(WiFi.status());
       Serial.println(WiFi.localIP());
       WiFi.mode(WIFI_STA);
       wifiConnected = true;
     }
   } else if (!wifiConnected) {
-      WiFi.mode(WIFI_AP_STA);
-      delay(1000);
+      Serial.println("evet geldim ve buradayım");
+
       WiFi.softAP(ssid, password);
-      Serial.println("SoftAP modunda WiFi ağı başlatıldı.");
+      Serial.println("WiFi network started in SoftAP mode.");
       Serial.println(WiFi.softAPIP());
       wifiConnected = true;
   }
@@ -152,9 +159,9 @@ void setup()
     const char* ssid = doc["ssid"];
     const char* password = doc["password"];
 
-    Serial.print("Bağlanılan SSID: ");
+    Serial.print("Connected SSID: ");
     Serial.println(ssid);
-    Serial.print("Şifre: ");
+    Serial.print("Password: ");
     Serial.println(password);
 
     WiFi.begin(ssid, password);
@@ -164,18 +171,18 @@ void setup()
     }
     Serial.print(WiFi.status() == WL_CONNECTED);
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("Bağlandı!");
+      Serial.println("Connected!");
       Serial.print(WiFi.localIP().toString());
       clearEEPROM();
       writeEEPROMString(0, ssid);
       int passwordStart = strlen(ssid) + 1;
       writeEEPROMString(passwordStart, password);
-      request->send(200, "application/json", "{\"status\": \"true\",\"message\": \"Baglantı Basarılı.\",\"ip\": \"" + WiFi.localIP().toString() + "\"}");
+      request->send(200, "application/json", "{\"status\": \"true\",\"message\": \"Connection Successful.\",\"ip\": \"" + WiFi.localIP().toString() + "\"}");
       delay(1000);
       WiFi.mode(WIFI_MODE_STA);
 
     } else {
-      request->send(500, "application/json", "{\"error\":\"Baglantı basarısız oldu.\",\"status\":\"false\"}");
+      request->send(500, "application/json", "{\"status\":\"false\",\"error\":\"Connection failed.\"}");
       WiFi.disconnect();
     }
   });
@@ -203,6 +210,38 @@ void setup()
     }
 
     request->send(200, "application/json", "{\"status\":\"true\",\"message\":\"Toggle Led\"}");
+  });
+
+  server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
+
+    if ( Update.hasError() ) {
+      request->send(500, "text/plain", "{\"status\":\"false\",\"message\":\"Update Failed!\"}");
+    }
+    else {
+      request->send(200, "text/plain", "{\"status\":\"true\",\"message\":\"Update Successful! Restarting...\"}");
+    }
+    
+    delay(1000);
+    ESP.restart();
+  }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    
+    if (!index){
+      Serial.printf("Starting Update: %s\n", filename.c_str());
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { 
+        Update.printError(Serial);
+      }
+    }
+    
+    if (!Update.write(data, len)) {
+      Update.printError(Serial);
+    }
+    if (final) {
+      if (Update.end(true)) { 
+        Serial.printf("Update Completed: %uB\n", index + len);
+      } else {
+        Update.printError(Serial);
+      }
+    }
   });
 
   ws.onEvent(onWebSocketEvent);
@@ -239,6 +278,7 @@ void loop()
       WiFi.scanDelete();
     }
     if (!eeprom_ssid.isEmpty() && !eeprom_password.isEmpty()) {
+      Serial.println("buradan başlıyorum ben babaa");
       Serial.println(eeprom_password);
       Serial.println(eeprom_ssid);
       WiFi.begin(eeprom_ssid.c_str(), eeprom_password.c_str());
@@ -251,7 +291,7 @@ void loop()
       }
     }
   }
-  sendRandomValues(); // Üç farklı rastgele değerleri üret
-  ws.textAll("{\"values\":[" + String(latestRandomValues[0]) + "," + String(latestRandomValues[1]) + "," + String(latestRandomValues[2]) + "]}"); // Üç rastgele değeri gönder
+  sendRandomValues(); 
+  ws.textAll("{\"values\":[" + String(latestRandomValues[0]) + "," + String(latestRandomValues[1]) + "," + String(latestRandomValues[2]) + "]}"); 
   delay(1000);
 }
