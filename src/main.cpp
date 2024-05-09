@@ -5,6 +5,8 @@
 #include <EEPROM.h>
 #include <Update.h>
 #include <ModbusMaster.h>
+#include <iostream>
+#include <random>
 
 const char* password = "123456789";
 
@@ -91,20 +93,43 @@ AsyncWebSocket ws("/ws");
 
 int latestRandomValues[3] = {0, 0, 0}; 
 
-void sendLatestRandomValues(AsyncWebSocketClient *client) {
-  StaticJsonDocument<200> doc;
-  doc["values"][0] = latestRandomValues[0];
-  doc["values"][1] = latestRandomValues[1];
-  doc["values"][2] = latestRandomValues[2];
-  char buffer[200];
+void sendInitialMessage(AsyncWebSocketClient *client) {
+  StaticJsonDocument<512> doc;
+  doc["lineVoltage"] = 0;
+  doc["current"] = 0;
+  doc["freqBuffer"] = "0.0 Hz";
+  doc["activePower"] = 0;
+  doc["energyWatt"] = 0;
+  doc["energyKW"] = 0;
+  doc["temperature"] = 0;
+  doc["staticWaitDelay"] = 0;
+  doc["dynamicWaitDelay"] = 0;
+  doc["mcuTick"] = 0;
+  doc["mpuSwVersion"] = 0;
+  doc["endisStatus"] = 0;
+  doc["endisStatusThree"] = 0;
+  doc["resetDelayTimeButtonStatus"] = 0;
+  doc["earthVoltage"] = 0;
+  doc["loadVoltage"] = 0;
+  doc["lineVoltageCalib"] = 0;
+  doc["lowCurrentCalib"] = 0;
+  doc["hightCurrentCalib"] = 0;
+  doc["hightCurrentZeroCalib"] = 0;
+  doc["freqCalib"] = "No Error";
+  doc["loadVoltageCalib"] = 0;
+  doc["earthVoltageCalib"] = 0;
+  doc["tempeatureMcuCalib"] = 0;
+
+  char buffer[512];
   size_t len = serializeJson(doc, buffer);
   client->text(buffer, len);
 }
 
+
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_CONNECT) {
     Serial.println("Client connected");
-    sendLatestRandomValues(client); 
+    sendInitialMessage(client);
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.println("Client disconnected");
   }
@@ -148,7 +173,7 @@ void handleCheck(AsyncWebServerRequest *request) {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
   char macAddress[18];
   sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  String response = "{\"status\":\"true\",\"message\":\"Mpu Connection\",\"macAddress\":\"" + String(macAddress) + "\"}";
+  String response = "{\"status\":\"true\" ,\"message\":\"Mpu Connection\",\"macAddress\":\"" + String(macAddress) + "\"}";
   request->send(200, "application/json", response);
 }
 
@@ -177,6 +202,9 @@ void setup()
   Serial.begin(115200);
   EEPROM.begin(512);
   mbMaster.begin(1,Serial);
+  pinMode(ledPin, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+
 
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -345,7 +373,6 @@ int G_modbus_single_register_read(uint16_t Reg_Add)
   mbMaster.clearResponseBuffer();
 
   return return_value;
-
 }
 
 void G_modbus_single_register_write(uint16_t Reg_Add, uint16_t write_data )
@@ -436,7 +463,7 @@ void loop()
   {
     if(staticWaitDelay_EvetFlag ==1)
     {
-      G_modbus_single_register_write(40022,staticWaitDelay);
+      G_modbus_single_register_write(22,staticWaitDelay);
     }
     else  
     {
@@ -444,7 +471,7 @@ void loop()
     }
   }
 
-  dynamicWaitDelay_3=G_modbus_single_register_read(40023); 
+  dynamicWaitDelay_3=G_modbus_single_register_read(23); 
 
   mcuTick_=G_modbus_single_register_read(40100); 
   
@@ -811,7 +838,7 @@ String endisButton_3;
     
 
   int temp_temperatureMcu_calib;
-  temp_temperatureMcu_calib=G_modbus_single_register_read(40032); 
+  temp_temperatureMcu_calib= G_modbus_single_register_read(40032); 
 
   if(temp_temperatureMcu_calib !=temperatureMcu_calib)
   {
@@ -825,7 +852,8 @@ String endisButton_3;
     }
   }
 
-  sendRandomValues(); 
-  ws.textAll("{,\"lineVoltage\": " + String(lineVoltage/100) + ",\"current\": " +  String(current*10) + ",\"freqBuffer\": " + String(  freq_buffer)+ ",\"activePower\":" + String(activePower/10)+ ",\"energyWatt\": " + String( energyWatt)+ ",\"energyKw\": " + String( energyKW)+ ",\"temperature\": " + String( temperatureMcu)+ ",\"staticWaitDelay\": " + String( staticWaitDelay)+ ",\"dynamicWaitDelay\": " + String( dynamicWaitDelay_3)+ ",\"mcuTick\": " + String( mcuTick_)+ ",\"mpuSwVersion\": " + String( MPU_SW_Version)+ ",\"endisStatus\": " + String( enDisStatus)+ ",\"endisStatusThree\": " + String( endisButton_3)+ ",\"resetDelayTimeButtonStatus\": " + String( ResetDelayTimeButtonStatus)+ ",\"earthVoltage\": " + String( earthVoltage_4/100)+ ",\"loadVoltage\": " + String( loadVoltage_4/100)+ ",\"lineVoltageCalib\": " + String( LineVoltage_calib)+ ",\"lowCurrentCalib\": " + String( LowCurrent_calib)+ ",\"hightCurrentCalib\": " + String( HighCurrent_calib)+ ",\"hightCurrentZeroCalib\": " + String( HighCurrent_calib_EvetFlag)+ ",\"freqCalib\": " + String( fleqErrorResponse)+ ",\"loadVoltageCalib\": " + String( loadVoltage_calib)+ ",\"earthVoltageCalib\": " + String( earthVoltage_calib)+ ",\"tempeatureMcuCalib\": " + String( temp_earthVoltage_calib) + "}"); 
-  delay(1000);
+  Serial.println("{\"lineVoltage\": " + String(lineVoltage/100) + ",\"current\": " +  String(current*10) + ",\"freqBuffer\": " + String(  freq_buffer)+ ",\"activePower\":" + String(activePower/10)+ ",\"energyWatt\": " + String( energyWatt)+ ",\"energyKw\": " + String( energyKW)+ ",\"temperature\": " + String( temperatureMcu)+ ",\"staticWaitDelay\": " + String( staticWaitDelay)+ ",\"dynamicWaitDelay\": " + String( dynamicWaitDelay_3)+ ",\"mcuTick\": " + String( mcuTick_)+ ",\"mpuSwVersion\": " + String( MPU_SW_Version)+ ",\"endisStatus\": " + String( enDisStatus)+ ",\"endisStatusThree\": " + String( endisButton_3)+ ",\"resetDelayTimeButtonStatus\": " + String( ResetDelayTimeButtonStatus)+ ",\"earthVoltage\": " + String( earthVoltage_4/100)+ ",\"loadVoltage\": " + String( loadVoltage_4/100)+ ",\"lineVoltageCalib\": " + String( LineVoltage_calib)+ ",\"lowCurrentCalib\": " + String( LowCurrent_calib)+ ",\"hightCurrentCalib\": " + String( HighCurrent_calib)+ ",\"hightCurrentZeroCalib\": " + String( HighCurrent_calib_EvetFlag)+ ",\"freqCalib\": " + String( fleqErrorResponse)+ ",\"loadVoltageCalib\": " + String( loadVoltage_calib)+ ",\"earthVoltageCalib\": " + String( earthVoltage_calib)+ ",\"tempeatureMcuCalib\": " + String( temp_earthVoltage_calib) + "}");
+
+
+  ws.textAll("{\"lineVoltage\": \" " + String(lineVoltage/100) + " \",\"current\": \" " +  String(current*10) + " \",\"freqBuffer\": \" " + String(  freq_buffer)+ " \",\"activePower\": \"" + String(activePower/10)+ " \",\"energyWatt\": \" " + String( energyWatt)+ " \",\"energyKw\": \" " + String( energyKW)+ " \",\"temperature\": \" " + String( temperatureMcu)+ " \",\"staticWaitDelay\": \" " + String( staticWaitDelay)+ " \",\"dynamicWaitDelay\": \" " + String( dynamicWaitDelay_3)+ " \",\"mcuTick\": \" " + String( mcuTick_)+ " \",\"mpuSwVersion\": \" " + String( MPU_SW_Version)+ " \",\"endisStatus\": \" " + String( enDisStatus)+ " \",\"endisStatusThree\": \" " + String( endisButton_3)+ " \",\"resetDelayTimeButtonStatus\": \" " + String( ResetDelayTimeButtonStatus)+ " \",\"earthVoltage\": \" " + String( earthVoltage_4/100)+ " \",\"loadVoltage\": \" " + String( loadVoltage_4/100)+ " \",\"lineVoltageCalib\": \" " + String( LineVoltage_calib)+ " \",\"lowCurrentCalib\": \" " + String( LowCurrent_calib)+ " \",\"hightCurrentCalib\": \" " + String( HighCurrent_calib)+ " \",\"hightCurrentZeroCalib\": \" " + String( HighCurrent_calib_EvetFlag)+ " \",\"freqCalib\": \" " + String( fleqErrorResponse)+ " \",\"loadVoltageCalib\": \" " + String( loadVoltage_calib)+ " \",\"earthVoltageCalib\": \" " + String( earthVoltage_calib)+ " \",\"tempeatureMcuCalib\": \" " + String( temp_earthVoltage_calib) + "\"}"); 
 }
