@@ -20,7 +20,7 @@ const int EEPROM_SIZE = 512;
 const int SSID_ADDRESS = 0;
 const int PASSWORD_ADDRESS = 32;
 
-int MPU_Status;
+int iotDevice_Status;
 int lineVoltage;
 int current;
 int freq;
@@ -52,7 +52,7 @@ int ResetDelayTimeButtonStatus_3;
 int mcuTick_;
 int resetEventFlag = 0;                           
 int resetStatus;
-int MPU_SW_Version;
+int iotDevice_SW_Version;
 
 int lineVoltage_4;
 int LineVoltage_calib;    
@@ -105,7 +105,7 @@ void sendInitialMessage(AsyncWebSocketClient *client) {
   doc["staticWaitDelay"] = 0;
   doc["dynamicWaitDelay"] = 0;
   doc["mcuTick"] = 0;
-  doc["mpuSwVersion"] = 0;
+  doc["iotDeviceSwVersion"] = 0;
   doc["endisStatus"] = 0;
   doc["endisStatusThree"] = 0;
   doc["resetDelayTimeButtonStatus"] = 0;
@@ -173,7 +173,7 @@ void handleCheck(AsyncWebServerRequest *request) {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
   char macAddress[18];
   sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  String response = "{\"status\":\"true\" ,\"message\":\"Mpu Connection\",\"macAddress\":\"" + String(macAddress) + "\"}";
+  String response = "{\"status\":\"true\" ,\"message\":\"iotDevice Connection\",\"macAddress\":\"" + String(macAddress) + "\"}";
   request->send(200, "application/json", response);
 }
 
@@ -211,7 +211,7 @@ void setup()
 
   String macAddress = String(mac[0], HEX) + String(mac[1], HEX) +  String(mac[2], HEX) + String(mac[3], HEX) + String(mac[4], HEX) + String(mac[5], HEX);
   macAddress.toUpperCase();
-  String ssid = "MPU-" + macAddress;
+  String ssid = "iotDevice-" + macAddress;
 
   eeprom_ssid = readEEPROMString(0, 32); 
   int passwordStart = eeprom_ssid.length() + 1; 
@@ -475,35 +475,35 @@ void loop()
 
   mcuTick_=G_modbus_single_register_read(40100); 
   
-  MPU_SW_Version=G_modbus_single_register_read(40098); 
+  iotDevice_SW_Version=G_modbus_single_register_read(40098); 
 
-  MPU_Status=G_modbus_single_register_read(40024);
+  iotDevice_Status=G_modbus_single_register_read(40024);
   int relayStatus;
   int buttonStatus;
   int errorStatus_f;
   int temp;
   int error_recovery;
   String errorStatusResponse;
-  String mpuStatus;
+  String iotDeviceStatus;
   String waitDelayActive;
 
 
-  relayStatus = (MPU_Status % 2);
-  buttonStatus = ((MPU_Status>>1) % 2); 
-  errorStatus_f = ((MPU_Status>>2) % 2);
-  isWaitDelayActive = ((MPU_Status>>3) % 2);
-  error_recovery = ((MPU_Status>>4) % 2);
+  relayStatus = (iotDevice_Status % 2);
+  buttonStatus = ((iotDevice_Status>>1) % 2); 
+  errorStatus_f = ((iotDevice_Status>>2) % 2);
+  isWaitDelayActive = ((iotDevice_Status>>3) % 2);
+  error_recovery = ((iotDevice_Status>>4) % 2);
   if(errorStatus_f == 1)
   {
     if(error_recovery==1)
     {
       errorStatusResponse = "Wait Error Recovery Time";
-      mpuStatus = "Wait Error Recovery Time";
+      iotDeviceStatus = "Wait Error Recovery Time";
     }
     else
     {
       errorStatusResponse = "Error Available";
-      mpuStatus = "Error Available";
+      iotDeviceStatus = "Error Available";
     }
 
   }
@@ -513,13 +513,13 @@ void loop()
 
     if(isWaitDelayActive == 1)
     {
-      mpuStatus = "Wait Delay Time";
+      iotDeviceStatus = "Wait Delay Time";
     }
     else
     {
       if(relayStatus == 1 )
       {
-        mpuStatus = "On Load";
+        iotDeviceStatus = "On Load";
       }
     }
   }
@@ -607,18 +607,18 @@ int ESP_Permissions;
 ESP_Permissions= G_modbus_single_register_read(40026);
 String endisButtonResponse;
 String endisButton_3;
-  int mpuEnabled;
-  mpuEnabled = (ESP_Permissions % 2);
+  int iotDeviceEnabled;
+  iotDeviceEnabled = (ESP_Permissions % 2);
 
-  if(mpuEnabled != enDisStatus)
+  if(iotDeviceEnabled != enDisStatus)
   {
     if((enDisEventFlag == 0)||(enDisEventFlag_3 == 0))
     {
-      enDisStatus=mpuEnabled;
-      enDisStatus_3=mpuEnabled;
+      enDisStatus=iotDeviceEnabled;
+      enDisStatus_3=iotDeviceEnabled;
 
-      endisButtonResponse = mpuEnabled;
-      endisButton_3 = mpuEnabled;
+      endisButtonResponse = iotDeviceEnabled;
+      endisButton_3 = iotDeviceEnabled;
     }
   }
 
@@ -852,8 +852,8 @@ String endisButton_3;
     }
   }
 
-  Serial.println("{\"lineVoltage\": " + String(lineVoltage/100) + ",\"current\": " +  String(current*10) + ",\"freqBuffer\": " + String(  freq_buffer)+ ",\"activePower\":" + String(activePower/10)+ ",\"energyWatt\": " + String( energyWatt)+ ",\"energyKw\": " + String( energyKW)+ ",\"temperature\": " + String( temperatureMcu)+ ",\"staticWaitDelay\": " + String( staticWaitDelay)+ ",\"dynamicWaitDelay\": " + String( dynamicWaitDelay_3)+ ",\"mcuTick\": " + String( mcuTick_)+ ",\"mpuSwVersion\": " + String( MPU_SW_Version)+ ",\"endisStatus\": " + String( enDisStatus)+ ",\"endisStatusThree\": " + String( endisButton_3)+ ",\"resetDelayTimeButtonStatus\": " + String( ResetDelayTimeButtonStatus)+ ",\"earthVoltage\": " + String( earthVoltage_4/100)+ ",\"loadVoltage\": " + String( loadVoltage_4/100)+ ",\"lineVoltageCalib\": " + String( LineVoltage_calib)+ ",\"lowCurrentCalib\": " + String( LowCurrent_calib)+ ",\"hightCurrentCalib\": " + String( HighCurrent_calib)+ ",\"hightCurrentZeroCalib\": " + String( HighCurrent_calib_EvetFlag)+ ",\"freqCalib\": " + String( fleqErrorResponse)+ ",\"loadVoltageCalib\": " + String( loadVoltage_calib)+ ",\"earthVoltageCalib\": " + String( earthVoltage_calib)+ ",\"tempeatureMcuCalib\": " + String( temp_earthVoltage_calib) + "}");
+  Serial.println("{\"lineVoltage\": " + String(lineVoltage/100) + ",\"current\": " +  String(current*10) + ",\"freqBuffer\": " + String(  freq_buffer)+ ",\"activePower\":" + String(activePower/10)+ ",\"energyWatt\": " + String( energyWatt)+ ",\"energyKw\": " + String( energyKW)+ ",\"temperature\": " + String( temperatureMcu)+ ",\"staticWaitDelay\": " + String( staticWaitDelay)+ ",\"dynamicWaitDelay\": " + String( dynamicWaitDelay_3)+ ",\"mcuTick\": " + String( mcuTick_)+ ",\"iotDeviceSwVersion\": " + String( iotDevice_SW_Version)+ ",\"endisStatus\": " + String( enDisStatus)+ ",\"endisStatusThree\": " + String( endisButton_3)+ ",\"resetDelayTimeButtonStatus\": " + String( ResetDelayTimeButtonStatus)+ ",\"earthVoltage\": " + String( earthVoltage_4/100)+ ",\"loadVoltage\": " + String( loadVoltage_4/100)+ ",\"lineVoltageCalib\": " + String( LineVoltage_calib)+ ",\"lowCurrentCalib\": " + String( LowCurrent_calib)+ ",\"hightCurrentCalib\": " + String( HighCurrent_calib)+ ",\"hightCurrentZeroCalib\": " + String( HighCurrent_calib_EvetFlag)+ ",\"freqCalib\": " + String( fleqErrorResponse)+ ",\"loadVoltageCalib\": " + String( loadVoltage_calib)+ ",\"earthVoltageCalib\": " + String( earthVoltage_calib)+ ",\"tempeatureMcuCalib\": " + String( temp_earthVoltage_calib) + "}");
 
 
-  ws.textAll("{\"lineVoltage\": \" " + String(lineVoltage/100) + " \",\"current\": \" " +  String(current*10) + " \",\"freqBuffer\": \" " + String(  freq_buffer)+ " \",\"activePower\": \"" + String(activePower/10)+ " \",\"energyWatt\": \" " + String( energyWatt)+ " \",\"energyKw\": \" " + String( energyKW)+ " \",\"temperature\": \" " + String( temperatureMcu)+ " \",\"staticWaitDelay\": \" " + String( staticWaitDelay)+ " \",\"dynamicWaitDelay\": \" " + String( dynamicWaitDelay_3)+ " \",\"mcuTick\": \" " + String( mcuTick_)+ " \",\"mpuSwVersion\": \" " + String( MPU_SW_Version)+ " \",\"endisStatus\": \" " + String( enDisStatus)+ " \",\"endisStatusThree\": \" " + String( endisButton_3)+ " \",\"resetDelayTimeButtonStatus\": \" " + String( ResetDelayTimeButtonStatus)+ " \",\"earthVoltage\": \" " + String( earthVoltage_4/100)+ " \",\"loadVoltage\": \" " + String( loadVoltage_4/100)+ " \",\"lineVoltageCalib\": \" " + String( LineVoltage_calib)+ " \",\"lowCurrentCalib\": \" " + String( LowCurrent_calib)+ " \",\"hightCurrentCalib\": \" " + String( HighCurrent_calib)+ " \",\"hightCurrentZeroCalib\": \" " + String( HighCurrent_calib_EvetFlag)+ " \",\"freqCalib\": \" " + String( fleqErrorResponse)+ " \",\"loadVoltageCalib\": \" " + String( loadVoltage_calib)+ " \",\"earthVoltageCalib\": \" " + String( earthVoltage_calib)+ " \",\"tempeatureMcuCalib\": \" " + String( temp_earthVoltage_calib) + "\"}"); 
+  ws.textAll("{\"lineVoltage\": \" " + String(lineVoltage/100) + " \",\"current\": \" " +  String(current*10) + " \",\"freqBuffer\": \" " + String(  freq_buffer)+ " \",\"activePower\": \"" + String(activePower/10)+ " \",\"energyWatt\": \" " + String( energyWatt)+ " \",\"energyKw\": \" " + String( energyKW)+ " \",\"temperature\": \" " + String( temperatureMcu)+ " \",\"staticWaitDelay\": \" " + String( staticWaitDelay)+ " \",\"dynamicWaitDelay\": \" " + String( dynamicWaitDelay_3)+ " \",\"mcuTick\": \" " + String( mcuTick_)+ " \",\"iotDeviceSwVersion\": \" " + String( iotDevice_SW_Version)+ " \",\"endisStatus\": \" " + String( enDisStatus)+ " \",\"endisStatusThree\": \" " + String( endisButton_3)+ " \",\"resetDelayTimeButtonStatus\": \" " + String( ResetDelayTimeButtonStatus)+ " \",\"earthVoltage\": \" " + String( earthVoltage_4/100)+ " \",\"loadVoltage\": \" " + String( loadVoltage_4/100)+ " \",\"lineVoltageCalib\": \" " + String( LineVoltage_calib)+ " \",\"lowCurrentCalib\": \" " + String( LowCurrent_calib)+ " \",\"hightCurrentCalib\": \" " + String( HighCurrent_calib)+ " \",\"hightCurrentZeroCalib\": \" " + String( HighCurrent_calib_EvetFlag)+ " \",\"freqCalib\": \" " + String( fleqErrorResponse)+ " \",\"loadVoltageCalib\": \" " + String( loadVoltage_calib)+ " \",\"earthVoltageCalib\": \" " + String( earthVoltage_calib)+ " \",\"tempeatureMcuCalib\": \" " + String( temp_earthVoltage_calib) + "\"}"); 
 }
